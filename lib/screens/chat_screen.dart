@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:async/async.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -16,8 +19,10 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _auth = FirebaseAuth.instance;
-
+  bool typing = false;
   String messageText;
+
+  RestartableTimer timer;
 
   var _controller = TextEditingController();
 
@@ -26,6 +31,21 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
 
     getCurrentUser();
+
+    timer = RestartableTimer(Duration(seconds: 5), () async {
+      setState(() {
+        typing = false;
+      });
+
+      print ('setting typing to false');
+
+      await _firestore
+          .collection('users')
+          .document(loggedInUser.uid)
+          .updateData({"typing": false});
+
+      timer.cancel();
+    });
   }
 
   void getCurrentUser() async {
@@ -34,19 +54,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
       if (user != null) {
         loggedInUser = user;
-        print(loggedInUser.email);
+//        print(loggedInUser.email);
       }
     } catch (e) {
       print(e);
     }
-  }
-
-  void messagesStream() async {
-    await _firestore.collection('messages').snapshots().forEach((snapshot) {
-      snapshot.documents.forEach((message) {
-        print(message.data);
-      });
-    });
   }
 
   @override
@@ -58,7 +70,8 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
               icon: Icon(Icons.close),
               onPressed: () {
-                messagesStream();
+                _auth.signOut();
+                Navigator.pop(context);
               }),
         ],
         title: Text('⚡️Chat'),
@@ -70,6 +83,15 @@ class _ChatScreenState extends State<ChatScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             MessagesStream(),
+            Visibility(
+              visible:
+                  typing, //TODO set visible to true if any of user 'typing' fields are true
+              child: Padding(
+                padding: EdgeInsets.all(10.0),
+                child: Text('Someone is typing...',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+              ),
+            ),
             Container(
               decoration: kMessageContainerDecoration,
               child: Row(
@@ -78,8 +100,21 @@ class _ChatScreenState extends State<ChatScreen> {
                   Expanded(
                     child: TextField(
                       controller: _controller,
-                      onChanged: (value) {
+                      onChanged: (value) async {
                         messageText = value;
+                        setState(() {
+                          typing = value.length > 0;
+                        });
+
+                        timer.reset();
+
+                        if (typing) {
+                          print('setting typing to true');
+                          await _firestore
+                              .collection('users')
+                              .document(loggedInUser.uid)
+                              .updateData({"typing": true});
+                        }
                       },
                       decoration: kMessageTextFieldDecoration,
                     ),
@@ -87,6 +122,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   FlatButton(
                     onPressed: () {
                       _controller.clear();
+                      setState(() {
+                        typing = false;
+                      });
                       _firestore.collection('messages').add({
                         'text': messageText,
                         'sender': loggedInUser.email,
@@ -165,7 +203,8 @@ class MessageBubble extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.all(10.0),
       child: Column(
-        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment:
+            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: <Widget>[
           Text(
             sender,

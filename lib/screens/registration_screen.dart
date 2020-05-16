@@ -47,9 +47,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 keyboardType: TextInputType.emailAddress,
                 textAlign: TextAlign.center,
                 onChanged: (value) {
-                 email = value;
+                  email = value;
                 },
-                decoration:kTextFieldDecoration.copyWith(hintText: 'Enter your email'),
+                decoration:
+                    kTextFieldDecoration.copyWith(hintText: 'Enter your email'),
               ),
               SizedBox(
                 height: 8.0,
@@ -58,9 +59,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 obscureText: true,
                 textAlign: TextAlign.center,
                 onChanged: (value) {
-                 password = value;
+                  password = value;
                 },
-                decoration: kTextFieldDecoration.copyWith(hintText: 'Enter your password'),
+                decoration: kTextFieldDecoration.copyWith(
+                    hintText: 'Enter your password'),
               ),
               SizedBox(
                 height: 24.0,
@@ -84,7 +86,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   setState(() {
                     showSpinner = false;
                   });
-
                 },
                 text: 'Register',
               ),

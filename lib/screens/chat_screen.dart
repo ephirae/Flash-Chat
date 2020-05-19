@@ -19,7 +19,6 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _auth = FirebaseAuth.instance;
-  bool typing = false;
   String messageText;
 
   RestartableTimer timer;
@@ -32,20 +31,18 @@ class _ChatScreenState extends State<ChatScreen> {
 
     getCurrentUser();
 
-    timer = RestartableTimer(Duration(seconds: 5), () async {
-      setState(() {
-        typing = false;
-      });
+    timer = RestartableTimer(
+      Duration(seconds: 3),
+      () async {
 
-      print ('setting typing to false');
+        await _firestore
+            .collection('users')
+            .document(loggedInUser.uid)
+            .updateData({"typing": false});
 
-      await _firestore
-          .collection('users')
-          .document(loggedInUser.uid)
-          .updateData({"typing": false});
-
-      timer.cancel();
-    });
+        timer.cancel();
+      },
+    );
   }
 
   void getCurrentUser() async {
@@ -54,7 +51,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
       if (user != null) {
         loggedInUser = user;
-//        print(loggedInUser.email);
       }
     } catch (e) {
       print(e);
@@ -63,6 +59,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       appBar: AppBar(
         leading: null,
@@ -83,15 +80,7 @@ class _ChatScreenState extends State<ChatScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             MessagesStream(),
-            Visibility(
-              visible:
-                  typing, //TODO set visible to true if any of user 'typing' fields are true
-              child: Padding(
-                padding: EdgeInsets.all(10.0),
-                child: Text('Someone is typing...',
-                    style: TextStyle(fontSize: 12, color: Colors.grey)),
-              ),
-            ),
+            TypingStream(),
             Container(
               decoration: kMessageContainerDecoration,
               child: Row(
@@ -102,14 +91,10 @@ class _ChatScreenState extends State<ChatScreen> {
                       controller: _controller,
                       onChanged: (value) async {
                         messageText = value;
-                        setState(() {
-                          typing = value.length > 0;
-                        });
 
                         timer.reset();
 
-                        if (typing) {
-                          print('setting typing to true');
+                        if (value.length > 0) {
                           await _firestore
                               .collection('users')
                               .document(loggedInUser.uid)
@@ -120,11 +105,14 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                   FlatButton(
-                    onPressed: () {
+                    onPressed: () async {
                       _controller.clear();
-                      setState(() {
-                        typing = false;
-                      });
+
+                      await _firestore
+                          .collection('users')
+                          .document(loggedInUser.uid)
+                          .updateData({"typing": false});
+
                       _firestore.collection('messages').add({
                         'text': messageText,
                         'sender': loggedInUser.email,
@@ -143,6 +131,38 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class TypingStream extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore.collection('users').snapshots(),
+      builder: (context, snapshot) {
+        final text = snapshot.data.documents;
+
+        bool amVisible = false;
+
+        text.forEach(
+          (element) {
+            final user = element.data;
+            if (user['typing'] == true && user['email'] != loggedInUser.email) {
+              amVisible = true;
+            }
+          },
+        );
+
+        return Visibility(
+          visible: amVisible,
+          child: Padding(
+            padding: EdgeInsets.all(10.0),
+            child: Text('Someone is typing...',
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
+          ),
+        );
+      },
     );
   }
 }
